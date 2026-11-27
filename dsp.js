@@ -37,8 +37,9 @@
   }
 
   // Look-ahead peak limiter: the gain starts to fall lookMs before a peak
-  // and recovers with a releaseMs time constant.  Returns the stats.
-  function limit(x, rate, ceiling, lookMs, releaseMs) {
+  // and recovers with a releaseMs time constant.  Returns the stats.  With
+  // `dry` the samples are left alone and only the stats are worked out.
+  function limit(x, rate, ceiling, lookMs, releaseMs, dry) {
     const n = Math.max(1, Math.round(lookMs * rate / 1000)), N = x.length;
     const need = new Float32Array(N);
     for (let i = 0; i < N; i++) { const a = Math.abs(x[i]); need[i] = a > ceiling ? ceiling / a : 1; }
@@ -71,7 +72,7 @@
       if (v < 0.9886) reduced++;            // 0.1 dB
       if (v < 0.8913) over1++;              // 1 dB
       if (v < 1) { const r = -20 * Math.log10(v); if (r > maxRed) maxRed = r; }
-      x[i] *= v;
+      if (!dry) x[i] *= v;
     }
     return { reducedPct: 100 * reduced / Math.max(1, N), over1Pct: 100 * over1 / Math.max(1, N), maxDb: maxRed };
   }

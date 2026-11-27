@@ -149,12 +149,30 @@
       if (x.length < 2) { $("stats").textContent = "Nothing left to play with these settings."; S.song = null; return; }
       x = x.slice();
 
+      const MAX_OVER1 = 10;    // percent of samples the limiter may reduce by more than 1 dB
       const ceiling = Math.min(1, Math.max(0.1, +$("ceiling").value || 0.98));
       let gain = 1, useLimit = $("limit").checked;
       if ($("levelmode").value === "auto") {
         const pct = Math.min(40, Math.max(0.01, +$("levelval").value || 2));
         const q = UADSP.levelAbovePct(x, pct);
         gain = q > 0 ? Math.max(1, ceiling / q) : 1;
+        // ... but no more than keeps the limiter's deep reduction (over 1 dB)
+        // under MAX_OVER1 percent of the song.  Limiting x * g at the ceiling
+        // has the gain curve of limiting x at ceiling / g, so try gains dry.
+        const over1 = (g) => UADSP.limit(x, rate, ceiling / g, 2, 80, true).over1Pct;
+        if (gain > 1) {
+          $("stats").textContent = "Finding the level ..."; await tick();
+          if (over1(gain) >= MAX_OVER1) {
+            let lo = 0, hi = 20 * Math.log10(gain);          // dB: lo passes or is no boost
+            while (hi - lo > 0.05) {
+              const mid = (lo + hi) / 2;
+              if (over1(Math.pow(10, mid / 20)) < MAX_OVER1) lo = mid; else hi = mid;
+            }
+            gain = Math.pow(10, lo / 20);
+            notes.push("boost held back by the limiter");
+          }
+          if (gen !== S.gen) return;
+        }
         useLimit = true;
       } else gain = Math.pow(10, (+$("levelval").value || 0) / 20);
       for (let i = 0; i < x.length; i++) x[i] *= gain;
